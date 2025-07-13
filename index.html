@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pearler Bead Designer</title>
+    <!-- Tailwind CSS CDN for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF CDN for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        /* Custom styles for the app */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Align to top to allow scrolling for larger content */
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .app-container {
+            background-color: #ffffff;
+            border-radius: 16px; /* Rounded corners for the main container */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 1200px; /* Max width for larger screens */
+            width: 100%;
+        }
+        canvas {
+            border: 2px solid #cbd5e1; /* Light gray border for canvas */
+            background-color: #ffffff;
+            cursor: crosshair; /* Crosshair cursor for drawing */
+            touch-action: none; /* Prevent default touch actions like scrolling/zooming */
+            display: block; /* Ensure canvas takes full width of its container */
+            max-width: 100%; /* Make canvas responsive */
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 8px; /* Rounded corners for canvas */
+        }
+        .color-palette button {
+            width: 40px; /* Fixed width for color buttons */
+            height: 40px; /* Fixed height for color buttons */
+            border-radius: 50%; /* Circular buttons */
+            border: 2px solid transparent; /* Default transparent border */
+            transition: transform 0.2s, border-color 0.2s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+        }
+        .color-palette button.selected {
+            border-color: #4f46e5; /* Indigo border for selected color */
+            transform: scale(1.1); /* Slightly larger when selected */
+        }
+        .control-button {
+            padding: 12px; /* Smaller padding for icon buttons */
+            width: 60px; /* Fixed width for icon buttons */
+            height: 60px; /* Fixed height for icon buttons */
+            border-radius: 10px; /* More rounded buttons */
+            font-weight: 600;
+            transition: background-color 0.2s, transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Button shadow */
+            display: flex; /* Use flex to center icon */
+            align-items: center;
+            justify-content: center;
+        }
+        .control-button:hover {
+            transform: translateY(-2px); /* Lift effect on hover */
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15); /* Enhanced shadow on hover */
+        }
+        .control-button:active {
+            transform: translateY(0); /* Press effect on click */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .primary-button {
+            background-color: #4f46e5; /* Indigo */
+            color: white;
+        }
+        .primary-button:hover {
+            background-color: #4338ca; /* Darker indigo */
+        }
+        .secondary-button {
+            background-color: #e2e8f0; /* Light gray */
+            color: #334155; /* Darker text */
+        }
+        .secondary-button:hover {
+            background-color: #cbd5e1; /* Darker light gray */
+        }
+        .message-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            text-align: center;
+        }
+        .message-box button {
+            padding: 10px 20px;
+            border-radius: 8px;
+            background-color: #4f46e5;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .message-box button:hover {
+            background-color: #4338ca;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none; /* Hidden by default */
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Controls Section -->
+        <div class="flex flex-col md:flex-row gap-6 justify-between items-center bg-gray-50 p-6 rounded-lg shadow-inner">
+            <!-- Shape Selection -->
+            <div class="flex flex-col items-center gap-3">
+                <div class="flex gap-4">
+                    <button id="shapeSquare" class="control-button secondary-button" title="Square">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
+                    </button>
+                    <button id="shapeCircle" class="control-button secondary-button" title="Circle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><circle cx="12" cy="12" r="10"></circle></svg>
+                    </button>
+                    <button id="shapeStar" class="control-button secondary-button" title="Star">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                    </button>
+                    <button id="shapeHeart" class="control-button secondary-button" title="Heart">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Color Palette -->
+            <div class="flex flex-col items-center gap-3">
+                <div id="colorPalette" class="color-palette flex flex-wrap justify-center gap-2">
+                    <!-- Color buttons will be dynamically added here by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Tools: Eraser and Image Import -->
+            <div class="flex flex-col items-center gap-3">
+                <div class="flex gap-4">
+                    <button id="eraserBtn" class="control-button secondary-button" title="Eraser">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M18.12 1.88a2.5 2.5 0 0 1 3.54 3.54L10.74 20.26 2 22l1.74-8.74L18.12 1.88z"></path></svg>
+                    </button>
+                    <button id="importImageBtn" class="control-button secondary-button" title="Import Image">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M14.5 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5L14.5 4z"></path><polyline points="14 2 14 8 20 8"></polyline><circle cx="10" cy="10" r="3"></circle><path d="M21 15l-5 5-4-4"></path></svg>
+                    </button>
+                    <input type="file" id="imageInput" accept="image/*" class="hidden"/>
+                </div>
+            </div>
+
+            <!-- Export Options -->
+            <div class="flex flex-col items-center gap-3">
+                <div class="flex gap-4">
+                    <button id="exportImage" class="control-button primary-button" title="Save as Image">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    </button>
+                    <button id="exportPdf" class="control-button primary-button" title="Save as PDF">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><line x1="10" y1="9" x2="8" y2="9"></line></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Section -->
+        <div class="flex flex-col items-center gap-6">
+            <canvas id="beadCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- Custom Message Box -->
+    <div id="messageBox" class="message-box">
+        <p id="messageText" class="text-gray-700 text-lg"></p>
+        <button id="messageBoxOk">OK</button>
+    </div>
+    <div id="overlay" class="overlay"></div>
+
+    <script>
+        // Get canvas and its 2D context
+        const canvas = document.getElementById('beadCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Configuration for beads and grid
+        const BEAD_MM = 2.5; // Physical size of one bead in mm
+        const DPI = 300; // Dots per inch for print resolution
+        // Calculate bead size in pixels for 1:1 print scale
+        const BEAD_PIXELS = (BEAD_MM / 25.4) * DPI; // Convert mm to inches, then inches to pixels
+
+        const DEFAULT_GRID_SIZE = 30; // Default grid size (e.g., 30x30 beads)
+        const MAX_BEAD_DIMENSION = 100; // Max beads in one dimension (e.g., 100x100 beads) to prevent excessively large canvases
+
+        let gridWidth = DEFAULT_GRID_SIZE;
+        let gridHeight = DEFAULT_GRID_SIZE;
+        let grid = []; // 2D array to store bead colors (e.g., grid[row][col] = colorHex)
+
+        let currentShape = 'square'; // Default shape
+        let selectedColor = '#000000'; // Default color (black)
+        let isDrawing = false; // Flag for mouse/touch drawing
+        let isEraserActive = false; // New flag for eraser mode
+        let lastSelectedColor = '#000000'; // Store the last selected color when eraser is active
+
+        // Predefined pearler bead colors (Hex codes) - Reduced to 8 colors
+        const beadColors = {
+            '#000000': 'Black',
+            '#FFFFFF': 'White',
+            '#FF0000': 'Red',
+            '#0000FF': 'Blue',
+            '#008000': 'Green',
+            '#FFFF00': 'Yellow',
+            '#FFC0CB': 'Pink',
+            '#800080': 'Purple'
+        };
+
+        // --- UI Elements ---
+        const colorPaletteDiv = document.getElementById('colorPalette');
+        const shapeSquareBtn = document.getElementById('shapeSquare');
+        const shapeCircleBtn = document.getElementById('shapeCircle');
+        const shapeStarBtn = document.getElementById('shapeStar');
+        const shapeHeartBtn = document.getElementById('shapeHeart'); // New heart shape button
+        const exportImageBtn = document.getElementById('exportImage');
+        const exportPdfBtn = document.getElementById('exportPdf');
+        const importImageBtn = document.getElementById('importImageBtn'); // New import image button
+        const imageInput = document.getElementById('imageInput');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+        const messageBoxOkBtn = document.getElementById('messageBoxOk');
+        const overlay = document.getElementById('overlay');
+        const eraserBtn = document.getElementById('eraserBtn'); // New eraser button
+
+        // --- Helper Functions ---
+
+        /**
+         * Shows a custom message box instead of alert().
+         * @param {string} message The message to display.
+         */
+        function showMessage(message) {
+            messageText.textContent = message;
+            messageBox.style.display = 'flex';
+            overlay.style.display = 'block';
+        }
+
+        /**
+         * Converts an RGB color array to a hex string.
+         * @param {number} r Red component (0-255).
+         * @param {number} g Green component (0-255).
+         * @param {number} b Blue component (0-255).
+         * @returns {string} Hex color string (e.g., '#RRGGBB').
+         */
+        function rgbToHex(r, g, b) {
+            return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
+        }
+
+        /**
+         * Converts a hex color string to an RGB array.
+         * @param {string} hex Hex color string (e.g., '#RRGGBB').
+         * @returns {number[]} RGB array [r, g, b].
+         */
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.slice(1), 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return [r, g, b];
+        }
+
+        /**
+         * Calculates the Euclidean distance between two RGB colors.
+         * @param {number[]} rgb1 First RGB color [r, g, b].
+         * @param {number[]} rgb2 Second RGB color [r, g, b].
+         * @returns {number} The distance.
+         */
+        function colorDistance(rgb1, rgb2) {
+            return Math.sqrt(
+                Math.pow(rgb1[0] - rgb2[0], 2) +
+                Math.pow(rgb1[1] - rgb2[1], 2) +
+                Math.pow(rgb1[2] - rgb2[2], 2)
+            );
+        }
+
+        /**
+         * Finds the closest predefined bead color to a given RGB color.
+         * @param {number[]} targetRgb Target RGB color [r, g, b].
+         * @returns {string} Hex string of the closest bead color.
+         */
+        function getClosestBeadColor(targetRgb) {
+            let minDistance = Infinity;
+            let closestColorHex = '#FFFFFF'; // Default to white for closest match
+
+            for (const hex in beadColors) {
+                const beadRgb = hexToRgb(hex);
+                const dist = colorDistance(targetRgb, beadRgb);
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    closestColorHex = hex;
+                }
+            }
+            return closestColorHex;
+        }
+
+        /**
+         * Initializes the grid with a default transparent color or white.
+         * @param {number} width Grid width.
+         * @param {number} height Grid height.
+         */
+        function initializeGrid(width, height) {
+            gridWidth = width;
+            gridHeight = height;
+            grid = Array(gridHeight).fill(null).map(() => Array(gridWidth).fill('#FFFFFF')); // Initialize with white
+        }
+
+        /**
+         * Clears the canvas and redraws all beads from the grid.
+         */
+        function redrawCanvas() {
+            // Set canvas dimensions based on bead pixels for 1:1 export
+            canvas.width = gridWidth * BEAD_PIXELS;
+            canvas.height = gridHeight * BEAD_PIXELS;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let r = 0; r < gridHeight; r++) {
+                for (let c = 0; c < gridWidth; c++) {
+                    const color = grid[r][c];
+                    if (color && color !== '#FFFFFF') { // Only draw if not white (transparent)
+                        drawBead(c, r, color);
+                    }
+                }
+            }
+
+            // Draw grid lines for visual reference
+            ctx.strokeStyle = '#e2e8f0'; // Light gray grid lines
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= gridWidth; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * BEAD_PIXELS, 0);
+                ctx.lineTo(i * BEAD_PIXELS, canvas.height);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= gridHeight; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, i * BEAD_PIXELS);
+                ctx.lineTo(canvas.width, i * BEAD_PIXELS);
+                ctx.stroke();
+            }
+
+            // Draw shape outline
+            ctx.strokeStyle = '#4f46e5'; // Indigo outline
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            if (currentShape === 'square') {
+                ctx.rect(0, 0, canvas.width, canvas.height);
+            } else if (currentShape === 'circle') {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const radius = Math.min(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            } else if (currentShape === 'star') {
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const outerRadius = Math.min(centerX, centerY) * 0.9;
+                const innerRadius = outerRadius * 0.4; // Adjust for star pointiness
+                const numPoints = 5;
+
+                for (let i = 0; i < numPoints * 2; i++) {
+                    const radius = i % 2 === 0 ? outerRadius : innerRadius;
+                    const angle = (Math.PI / numPoints) * i - Math.PI / 2; // Start from top
+                    const x = centerX + radius * Math.cos(angle);
+                    const y = centerY + radius * Math.sin(angle);
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.closePath();
+            } else if (currentShape === 'heart') {
+                const heartSize = Math.min(canvas.width, canvas.height) * 0.4;
+                const heartX = canvas.width / 2;
+                const heartY = canvas.height / 2 + heartSize * 0.2; // Adjust Y to center vertically
+
+                ctx.moveTo(heartX, heartY + heartSize); // Bottom point
+                ctx.arc(heartX - heartSize / 2, heartY, heartSize / 2, Math.PI, 0, true); // Left arc
+                ctx.arc(heartX + heartSize / 2, heartY, heartSize / 2, Math.PI, 0, true); // Right arc
+                ctx.lineTo(heartX, heartY + heartSize); // Connect to bottom point
+                ctx.closePath();
+            }
+            ctx.stroke();
+        }
+
+        /**
+         * Draws a single bead on the canvas.
+         * @param {number} col Column index.
+         * @param {number} row Row index.
+         * @param {string} color Hex color string.
+         */
+        function drawBead(col, row, color) {
+            const x = col * BEAD_PIXELS;
+            const y = row * BEAD_PIXELS;
+
+            if (color === '#FFFFFF') { // If erasing (setting to white)
+                ctx.clearRect(x, y, BEAD_PIXELS, BEAD_PIXELS); // Clear the whole cell
+                // Redraw the grid lines for this specific cell
+                ctx.strokeStyle = '#e2e8f0';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x, y, BEAD_PIXELS, BEAD_PIXELS); // Redraw cell border
+            } else {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                // Draw a circle for the bead
+                ctx.arc(x + BEAD_PIXELS / 2, y + BEAD_PIXELS / 2, BEAD_PIXELS / 2 * 0.8, 0, Math.PI * 2); // 0.8 for spacing
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        /**
+         * Checks if a given grid coordinate is within the currently selected shape.
+         * @param {number} col Column index.
+         * @param {number} row Row index.
+         * @returns {boolean} True if within shape, false otherwise.
+         */
+        function isInsideShape(col, row) {
+            const centerX = gridWidth / 2;
+            const centerY = gridHeight / 2;
+
+            if (currentShape === 'square') {
+                return true; // Always inside for square
+            } else if (currentShape === 'circle') {
+                const dx = col + 0.5 - centerX;
+                const dy = row + 0.5 - centerY;
+                const radius = Math.min(centerX, centerY);
+                return (dx * dx + dy * dy) <= (radius * radius);
+            } else if (currentShape === 'star') {
+                // This is a simplified check for a star. A more accurate check would involve
+                // complex polygon point-in-polygon tests. For simplicity, we'll check if it's
+                // generally within a bounding circle of the star, and rely on the visual outline.
+                const dx = col + 0.5 - centerX;
+                const dy = row + 0.5 - centerY;
+                const outerRadius = Math.min(centerX, centerY) * 0.9;
+                return (dx * dx + dy * dy) <= (outerRadius * outerRadius);
+            } else if (currentShape === 'heart') {
+                // Simplified check for heart, within a bounding box/circle for simplicity
+                const dx = col + 0.5 - centerX;
+                const dy = row + 0.5 - centerY;
+                const heartSize = Math.min(gridWidth, gridHeight) * 0.4;
+                const heartTopY = centerY - heartSize * 0.8; // Approximate top of the heart
+                const heartBottomY = centerY + heartSize * 1.2; // Approximate bottom of the heart
+                const heartLeftX = centerX - heartSize;
+                const heartRightX = centerX + heartSize;
+
+                // Check if within a bounding box that generally covers the heart shape
+                return col >= Math.floor(heartLeftX) && col <= Math.ceil(heartRightX) &&
+                       row >= Math.floor(heartTopY) && row <= Math.ceil(heartBottomY);
+            }
+            return false;
+        }
+
+        // --- Event Handlers ---
+
+        /**
+         * Handles mouse/touch down events on the canvas.
+         * @param {MouseEvent|TouchEvent} e Event object.
+         */
+        function handleCanvasStart(e) {
+            isDrawing = true;
+            drawBeadAtEvent(e);
+        }
+
+        /**
+         * Handles mouse/touch move events on the canvas.
+         * @param {MouseEvent|TouchEvent} e Event object.
+         */
+        function handleCanvasMove(e) {
+            if (!isDrawing) return;
+            drawBeadAtEvent(e);
+        }
+
+        /**
+         * Handles mouse/touch up/out events on the canvas.
+         */
+        function handleCanvasEnd() {
+            isDrawing = false;
+        }
+
+        /**
+         * Draws a bead at the event's coordinates.
+         * @param {MouseEvent|TouchEvent} e Event object.
+         */
+        function drawBeadAtEvent(e) {
+            e.preventDefault(); // Prevent scrolling on touch devices
+
+            const rect = canvas.getBoundingClientRect();
+            let clientX, clientY;
+
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            const scaleX = canvas.width / rect.width;    // Relationship bitmap vs. element for X
+            const scaleY = canvas.height / rect.height;  // Relationship bitmap vs. element for Y
+
+            const x = (clientX - rect.left) * scaleX;
+            const y = (clientY - rect.top) * scaleY;
+
+            const col = Math.floor(x / BEAD_PIXELS);
+            const row = Math.floor(y / BEAD_PIXELS);
+
+            if (col >= 0 && col < gridWidth && row >= 0 && row < gridHeight && isInsideShape(col, row)) {
+                grid[row][col] = selectedColor;
+                drawBead(col, row, selectedColor);
+            }
+        }
+
+        /**
+         * Handles shape button clicks.
+         * @param {string} shape The shape name ('square', 'circle', 'star', 'heart').
+         */
+        function handleShapeChange(shape) {
+            currentShape = shape;
+            // Reset grid and redraw for new shape
+            initializeGrid(DEFAULT_GRID_SIZE, DEFAULT_GRID_SIZE);
+            redrawCanvas();
+
+            // Deactivate eraser if active
+            if (isEraserActive) {
+                isEraserActive = false;
+                eraserBtn.classList.remove('primary-button');
+                eraserBtn.classList.add('secondary-button');
+                selectedColor = lastSelectedColor; // Restore last selected color
+            }
+
+            // Update button styles for shapes
+            document.querySelectorAll('.flex.gap-4 button').forEach(btn => {
+                if (btn.id.startsWith('shape')) {
+                    btn.classList.remove('primary-button');
+                    btn.classList.add('secondary-button');
+                }
+            });
+
+            if (shape === 'square') {
+                shapeSquareBtn.classList.add('primary-button');
+                shapeSquareBtn.classList.remove('secondary-button');
+            } else if (shape === 'circle') {
+                shapeCircleBtn.classList.add('primary-button');
+                shapeCircleBtn.classList.remove('secondary-button');
+            } else if (shape === 'star') {
+                shapeStarBtn.classList.add('primary-button');
+                shapeStarBtn.classList.remove('secondary-button');
+            } else if (shape === 'heart') {
+                shapeHeartBtn.classList.add('primary-button');
+                shapeHeartBtn.classList.remove('secondary-button');
+            }
+
+            // Ensure a color is selected if eraser was active
+            const currentSelectedColorButton = colorPaletteDiv.querySelector(`button[style*="${selectedColor.toLowerCase()}"]`);
+            if (!currentSelectedColorButton) {
+                // If the current selected color somehow got unselected, re-select the default or first available
+                const firstColorButton = colorPaletteDiv.querySelector('button');
+                if (firstColorButton) {
+                    handleColorSelect(Object.keys(beadColors)[0], firstColorButton);
+                }
+            }
+        }
+
+        /**
+         * Handles color palette button clicks.
+         * @param {string} colorHex The hex code of the selected color.
+         * @param {HTMLElement} button The clicked button element.
+         */
+        function handleColorSelect(colorHex, button) {
+            selectedColor = colorHex;
+            lastSelectedColor = colorHex; // Update last selected color
+            isEraserActive = false; // Deactivate eraser
+            eraserBtn.classList.remove('primary-button');
+            eraserBtn.classList.add('secondary-button');
+
+            // Update selected class for color buttons
+            document.querySelectorAll('.color-palette button').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            button.classList.add('selected');
+        }
+
+        /**
+         * Toggles the eraser mode.
+         */
+        function handleEraserToggle() {
+            isEraserActive = !isEraserActive;
+
+            if (isEraserActive) {
+                // Activate eraser
+                eraserBtn.classList.add('primary-button');
+                eraserBtn.classList.remove('secondary-button');
+                // Store current color and set selectedColor to white for erasing
+                selectedColor = '#FFFFFF';
+                // Remove selected class from all color buttons
+                document.querySelectorAll('.color-palette button').forEach(btn => {
+                    btn.classList.remove('selected');
+                });
+            } else {
+                // Deactivate eraser
+                eraserBtn.classList.remove('primary-button');
+                eraserBtn.classList.add('secondary-button');
+                selectedColor = lastSelectedColor; // Restore last selected color
+                // Re-select the last selected color button
+                const lastSelectedColorButton = colorPaletteDiv.querySelector(`button[style*="${lastSelectedColor.toLowerCase()}"]`);
+                if (lastSelectedColorButton) {
+                    lastSelectedColorButton.classList.add('selected');
+                }
+            }
+        }
+
+        /**
+         * Exports the canvas content as a 1:1 scaled PNG image.
+         */
+        function exportImage() {
+            const dataURL = canvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = 'pearler_bead_design.png';
+            link.href = dataURL;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showMessage('Design saved as PNG image!');
+        }
+
+        /**
+         * Exports the canvas content as a 1:1 scaled PDF.
+         */
+        function exportPdf() {
+            // window.jsPDF is available via the CDN
+            if (typeof window.jsPDF === 'undefined') {
+                showMessage('PDF export library not loaded. Please try again.');
+                return;
+            }
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm', // Use millimeters for precise scaling
+                format: 'a4' // Standard paper size, adjust as needed
+            });
+
+            // Calculate image dimensions in mm based on canvas pixels and BEAD_MM
+            const imgWidthMM = canvas.width / DPI * 25.4;
+            const imgHeightMM = canvas.height / DPI * 25.4;
+
+            // Add the image to the PDF
+            doc.addImage(canvas.toDataURL('image/png'), 'PNG', 10, 10, imgWidthMM, imgHeightMM); // 10mm margin
+            doc.save('pearler_bead_design.pdf');
+            showMessage('Design saved as PDF!');
+        }
+
+        /**
+         * Handles image import and conversion to bead design.
+         * @param {Event} e Input change event.
+         */
+        function importImage(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Create a temporary canvas to draw the image and get pixel data
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+
+                    // Determine grid size based on image aspect ratio, capped by MAX_BEAD_DIMENSION
+                    const aspectRatio = img.width / img.height;
+                    let newGridWidth, newGridHeight;
+
+                    if (img.width > img.height) {
+                        newGridWidth = Math.min(MAX_BEAD_DIMENSION, Math.floor(img.width / (img.height / DEFAULT_GRID_SIZE)));
+                        newGridHeight = Math.min(MAX_BEAD_DIMENSION, DEFAULT_GRID_SIZE);
+                    } else {
+                        newGridHeight = Math.min(MAX_BEAD_DIMENSION, Math.floor(img.height / (img.width / DEFAULT_GRID_SIZE)));
+                        newGridWidth = Math.min(MAX_BEAD_DIMENSION, DEFAULT_GRID_SIZE);
+                    }
+
+                    // Ensure dimensions don't exceed MAX_BEAD_DIMENSION
+                    if (newGridWidth > MAX_BEAD_DIMENSION) {
+                        newGridHeight = Math.floor(newGridHeight * (MAX_BEAD_DIMENSION / newGridWidth));
+                        newGridWidth = MAX_BEAD_DIMENSION;
+                    }
+                    if (newGridHeight > MAX_BEAD_DIMENSION) {
+                        newGridWidth = Math.floor(newGridWidth * (MAX_BEAD_DIMENSION / newGridHeight));
+                        newGridHeight = MAX_BEAD_DIMENSION;
+                    }
+
+                    // Ensure at least 1x1 grid
+                    newGridWidth = Math.max(1, newGridWidth);
+                    newGridHeight = Math.max(1, newGridHeight);
+
+                    tempCanvas.width = newGridWidth;
+                    tempCanvas.height = newGridHeight;
+                    tempCtx.drawImage(img, 0, 0, newGridWidth, newGridHeight);
+
+                    const imageData = tempCtx.getImageData(0, 0, newGridWidth, newGridHeight).data;
+
+                    initializeGrid(newGridWidth, newGridHeight); // Reset grid for new image dimensions
+
+                    let dataIndex = 0;
+                    for (let r = 0; r < newGridHeight; r++) {
+                        for (let c = 0; c < newGridWidth; c++) {
+                            const red = imageData[dataIndex];
+                            const green = imageData[dataIndex + 1];
+                            const blue = imageData[dataIndex + 2];
+                            // const alpha = imageData[dataIndex + 3]; // Alpha channel, not typically used for beads
+
+                            const closestColor = getClosestBeadColor([red, green, blue]);
+                            grid[r][c] = closestColor;
+                            dataIndex += 4; // Move to the next pixel (RGBA)
+                        }
+                    }
+                    redrawCanvas();
+                    showMessage('Image converted to bead design!');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- Initialization ---
+
+        /**
+         * Populates the color palette with buttons.
+         */
+        function populateColorPalette() {
+            colorPaletteDiv.innerHTML = ''; // Clear existing buttons
+            for (const hex in beadColors) {
+                const button = document.createElement('button');
+                button.style.backgroundColor = hex;
+                button.title = beadColors[hex]; // Show color name on hover
+                button.onclick = () => handleColorSelect(hex, button);
+                colorPaletteDiv.appendChild(button);
+            }
+            // Select the default color initially
+            const defaultColorButton = colorPaletteDiv.querySelector(`button[style*="${selectedColor.toLowerCase()}"]`);
+            if (defaultColorButton) {
+                defaultColorButton.classList.add('selected');
+            }
+        }
+
+        /**
+         * Sets up all event listeners.
+         */
+        function setupEventListeners() {
+            canvas.addEventListener('mousedown', handleCanvasStart);
+            canvas.addEventListener('mousemove', handleCanvasMove);
+            canvas.addEventListener('mouseup', handleCanvasEnd);
+            canvas.addEventListener('mouseout', handleCanvasEnd); // Stop drawing if mouse leaves canvas
+
+            // Touch events for mobile
+            canvas.addEventListener('touchstart', handleCanvasStart, { passive: false });
+            canvas.addEventListener('touchmove', handleCanvasMove, { passive: false });
+            canvas.addEventListener('touchend', handleCanvasEnd);
+            canvas.addEventListener('touchcancel', handleCanvasEnd);
+
+            shapeSquareBtn.addEventListener('click', () => handleShapeChange('square'));
+            shapeCircleBtn.addEventListener('click', () => handleShapeChange('circle'));
+            shapeStarBtn.addEventListener('click', () => handleShapeChange('star'));
+            shapeHeartBtn.addEventListener('click', () => handleShapeChange('heart')); // New heart shape listener
+
+            exportImageBtn.addEventListener('click', exportImage);
+            exportPdfBtn.addEventListener('click', exportPdf);
+            importImageBtn.addEventListener('click', () => imageInput.click()); // Trigger hidden file input
+            imageInput.addEventListener('change', importImage);
+
+            eraserBtn.addEventListener('click', handleEraserToggle); // Eraser button listener
+
+            messageBoxOkBtn.addEventListener('click', () => {
+                messageBox.style.display = 'none';
+                overlay.style.display = 'none';
+            });
+        }
+
+        // Run on window load
+        window.onload = function() {
+            populateColorPalette();
+            setupEventListeners();
+            handleShapeChange(currentShape); // Initialize canvas with default shape (square)
+        };
+
+        // Handle canvas resizing to keep it responsive
+        window.addEventListener('resize', redrawCanvas);
+    </script>
+</body>
+</html>
